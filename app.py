@@ -31,7 +31,7 @@ col_v, col_t = st.columns([1, 1.2])
 with col_v:
     st.subheader(f"🔊 {row['담당자']} 님 순서")
     st.markdown(f"**⏰ 시작 지점:** {row['시작시간']}")
-    st.video(f"{row['URL']}?t={t_sec}s")
+    st.video(row['URL'])
     st.write(f"🚩 **시작 문구:** {row['시작 단어(5)']}")
     st.write(f"🏁 **종료 문구:** {row['마지막 단어(5)']}")
 
