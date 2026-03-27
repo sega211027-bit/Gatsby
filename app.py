@@ -42,4 +42,4 @@ with col_t:
         <div style="font-size:24px; line-height:1.6; background:#f0f2f6; padding:25px; border-radius:15px;">
             {row['문단 첫 10단어']}...
         </div>
-    ''', unsafe_allow_index=True)
+    ''', unsafe_allow_html=True)
