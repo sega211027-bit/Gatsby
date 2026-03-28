@@ -119,9 +119,9 @@ if os.path.exists(JSON_FILE):
                 }}, 500);
             </script>
             """
-            #components.html(js_code, height=460)
+            components.html(js_code, height=460)
             #추가
-            components.html(js_code, height=460, key=f"yt_player_{day}_{rnd}_{turn}")
+            #components.html(js_code, height=460, key=f"yt_player_{day}_{rnd}_{turn}")
         else:
             st.warning("연습 준비 완료")
 else:
