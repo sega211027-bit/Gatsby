@@ -3,13 +3,12 @@ import json
 import os
 import streamlit.components.v1 as components
 
-# 1. 시간 변환 유틸리티 (안정성 강화)
+# 1. 시간 변환 유틸리티
 def format_time(seconds):
     try:
         s = int(float(seconds))
         return f"{s // 60}:{s % 60:02d}"
-    except (ValueError, TypeError):
-        return "0:00"
+    except: return "0:00"
 
 st.set_page_config(page_title="Gatsby Audio Guide", layout="wide")
 
@@ -17,10 +16,8 @@ st.set_page_config(page_title="Gatsby Audio Guide", layout="wide")
 if 'is_playing' not in st.session_state:
     st.session_state.is_playing = False
 
-# 리셋 신호가 들어오면 상태를 끄고 주소창의 파라미터를 안전하게 삭제
 if st.query_params.get("trigger") == "reset":
     st.session_state.is_playing = False
-    # 최신 Streamlit 방식: 모든 키를 명시적으로 삭제
     for k in list(st.query_params.keys()):
         del st.query_params[k]
     st.rerun()
@@ -32,7 +29,7 @@ if os.path.exists(JSON_FILE):
         cfg = json.load(f)
     v_id, r_data = cfg['video_id'], cfg['data']
     
-    # 사이드바 설정 (문자열 강제 변환으로 타입 에러 방지)
+    # 사이드바 설정
     st.sidebar.header("⚙️ Settings")
     loop_active = st.sidebar.toggle("🔄 무한 반복 모드", value=False)
     
@@ -45,15 +42,8 @@ if os.path.exists(JSON_FILE):
     turn_options = sorted(list(set(str(d['회차']) for d in r_data if str(d['Day']) == day and str(d['ROUND']) == rnd)))
     turn = st.sidebar.select_slider("🔢 회차", options=turn_options)
 
-    # 데이터 추출
-    try:
-        tgt = next(d for d in r_data if str(d['Day']) == day and str(d['ROUND']) == rnd and str(d['회차']) == turn)
-        s_val = int(float(tgt.get('start_sec', 0)))
-        e_val = int(float(tgt.get('end_sec', 0)))
-        phrase = tgt.get('phrase', '')
-    except StopIteration:
-        st.error("데이터를 찾을 수 없습니다.")
-        st.stop()
+    tgt = next(d for d in r_data if str(d['Day']) == day and str(d['ROUND']) == rnd and str(d['회차']) == turn)
+    s_val, e_val = int(float(tgt.get('start_sec', 0))), int(float(tgt.get('end_sec', 0)))
 
     # 3. 초대형 UI (레이아웃 고정)
     st.markdown(f"""
@@ -65,19 +55,16 @@ if os.path.exists(JSON_FILE):
             </div>
         </div>
         <div style="background-color: #ffffff; padding: 25px; border-radius: 15px; border: 4px solid #f1f1f1; text-align: center; margin-bottom: 20px;">
-            <h1 style="font-family: 'Times New Roman', serif; font-style: italic; color: #222; font-size: 3.5em; margin: 0;">"{phrase}"</h1>
+            <h1 style="font-family: 'Times New Roman', serif; font-style: italic; color: #222; font-size: 3.5em; margin: 0;">"{tgt.get('phrase', '')}"</h1>
         </div>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([1, 2])
     with col1:
         st.markdown("<style>div.stButton > button { height: 110px !important; font-size: 38px !important; border-radius: 15px !important; }</style>", unsafe_allow_html=True)
-        
         if not st.session_state.is_playing:
             if st.button("▶ START", use_container_width=True, type="primary"):
-                # 시작 시 유령 파라미터 완전 제거
-                for k in list(st.query_params.keys()):
-                    del st.query_params[k]
+                for k in list(st.query_params.keys()): del st.query_params[k]
                 st.session_state.is_playing = True
                 st.rerun()
         else:
@@ -85,7 +72,7 @@ if os.path.exists(JSON_FILE):
                 st.session_state.is_playing = False
                 st.rerun()
         
-        # 타임스탬프 (유튜브 형식)
+        # 타임스탬프 정보
         st.markdown(f"""
             <div style="margin-top: 10px; padding: 12px; background-color: #f1f1f1; border-radius: 10px; text-align: center;">
                 <p style="margin: 0; font-size: 1.1em; color: #555;">Track Timestamp</p>
@@ -98,9 +85,7 @@ if os.path.exists(JSON_FILE):
     with col2:
         if st.session_state.is_playing:
             is_loop = "true" if loop_active else "false"
-            # [TypeError 해결] 모든 변수를 명시적으로 str로 변환하여 고유 키 생성
-            component_key = f"yt_player_v4_{str(day)}_{str(rnd)}_{str(turn)}"
-            
+            # [중요] f-string 내부의 JS 중괄호는 {{ }} 로 써야 문법 에러가 안 납니다.
             js_code = f"""
             <div id="player"></div>
             <script>
@@ -115,7 +100,4 @@ if os.path.exists(JSON_FILE):
                         playerVars: {{ 'start': {s_val}, 'end': {e_val}, 'autoplay': 1, 'controls': 1, 'rel': 0, 'enablejsapi': 1 }}
                     }});
                 }}
-                var monitor = setInterval(function() {{
-                    if (player && player.getCurrentTime) {{
-                        var curr = player.getCurrentTime();
-                        if (curr >= {e_val} - 0.
+                var
