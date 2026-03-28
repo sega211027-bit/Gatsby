@@ -1,19 +1,28 @@
 import streamlit as st
 import json
 import os
+import time
 import streamlit.components.v1 as components
+
+# 시간 변환 함수
+def format_seconds(seconds):
+    try:
+        s = int(float(seconds))
+        return f"{s // 60}:{s % 60:02d}"
+    except: return "0:00"
 
 st.set_page_config(page_title="Gatsby Audio Guide", layout="wide")
 JSON_FILE = "final_mapping.json"
 
-# --- [상태 관리] ---
+# --- [상태 관리 및 종료 신호 수신] ---
 if 'is_playing' not in st.session_state:
     st.session_state.is_playing = False
 
-# 자바스크립트가 보내는 종료 신호를 받기 위한 처리
-# (컴포넌트의 반환값을 이용해 새로고침 없이 상태 변경)
-def on_video_end():
+# 자바스크립트가 보낸 'finished' 파라미터 감시 (배속/빨리감기 대응 리셋)
+if st.query_params.get("finished") == "true":
     st.session_state.is_playing = False
+    st.query_params.clear()
+    st.rerun()
 
 if os.path.exists(JSON_FILE):
     with open(JSON_FILE, 'r', encoding='utf-8') as f:
@@ -31,17 +40,33 @@ if os.path.exists(JSON_FILE):
     tgt = next(d for d in r_data if d['Day'] == day and d['ROUND'] == rnd and d['회차'] == turn)
     s_val, e_val = int(float(tgt.get('start_sec', 0))), int(float(tgt.get('end_sec', 0)))
 
-    # --- [메인 UI] ---
-    # (Day, Round 표시 박스 생략 - 기존과 동일)
+    # --- [1. 복원된 초대형 정보창] ---
+    st.markdown(f"""
+        <div style="background-color: #f8faff; padding: 25px; border-radius: 20px; border: 2px solid #e1e8f0; margin-bottom: 20px; text-align: center;">
+            <div style="display: flex; justify-content: space-around;">
+                <div><span style="font-size: 1.5em; color: #666;">Day</span><br><span style="font-size: 6.5em; font-weight: 900; color: #007bff; line-height: 1;">{day}</span></div>
+                <div><span style="font-size: 1.5em; color: #666;">ROUND</span><br><span style="font-size: 6.5em; font-weight: 900; color: #007bff; line-height: 1;">{rnd}</span></div>
+                <div><span style="font-size: 1.5em; color: #666;">회차</span><br><span style="font-size: 6.5em; font-weight: 900; color: #28a745; line-height: 1;">{turn}</span></div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # --- [2. 복원된 시작 구절 (Phrase)] ---
+    st.markdown(f"""
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 15px; border: 4px solid #f1f1f1; text-align: center; margin-bottom: 25px;">
+            <p style="color: #ff4b4b; font-size: 1.4em; font-weight: bold; margin-bottom: 10px;">📍 Starting Phrase</p>
+            <h1 style="font-family: 'Times New Roman', serif; font-style: italic; color: #222; font-size: 4em; margin: 0; line-height: 1.2;">"{tgt.get('phrase', '')}"</h1>
+        </div>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        # 버튼 스타일
+        st.info(f"🕒 **구간:** {format_seconds(s_val)} ~ {format_seconds(e_val)}")
         st.markdown("""
             <style>
-                div.stButton > button[kind="primary"] { height: 120px !important; font-size: 40px !important; background-color: #28a745 !important; border-radius: 20px !important; }
-                div.stButton > button[kind="secondary"] { height: 120px !important; font-size: 35px !important; background-color: #dc3545 !important; color: white !important; border-radius: 20px !important; }
+                div.stButton > button[kind="primary"] { height: 120px !important; font-size: 40px !important; background-color: #28a745 !important; border-radius: 20px !important; border: none !important; }
+                div.stButton > button[kind="secondary"] { height: 120px !important; font-size: 35px !important; background-color: #dc3545 !important; color: white !important; border-radius: 20px !important; border: none !important; }
             </style>
         """, unsafe_allow_html=True)
 
@@ -56,8 +81,8 @@ if os.path.exists(JSON_FILE):
 
     with col2:
         if st.session_state.is_playing:
-            # HTML/JS 감시 엔진 (가장 가벼운 방식)
-            html_watcher = f"""
+            # 실시간 감시 엔진 (빨리감기/배속 무관하게 e_val 도달 시 리셋)
+            js_code = f"""
             <div id="player"></div>
             <script>
                 var tag = document.createElement('script');
@@ -71,30 +96,26 @@ if os.path.exists(JSON_FILE):
                         height: '450', width: '100%', videoId: '{v_id}',
                         playerVars: {{ 'start': {s_val}, 'end': {e_val}, 'autoplay': 1, 'controls': 1, 'rel': 0, 'enablejsapi': 1 }},
                         events: {{ 'onStateChange': function(event) {{
-                            if (event.data == 0 && {str(not loop_active).lower()}) {{ sendEndSignal(); }}
+                            if (event.data == 0 && {str(not loop_active).lower()}) {{ triggerReset(); }}
                         }} }}
                     }});
                 }}
 
-                function sendEndSignal() {{
-                    // Streamlit에 종료 신호를 보냄 (URL 조작 대신 메시지 방식)
-                    window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'ended'}}, '*');
+                function triggerReset() {{
+                    const url = new URL(window.parent.location);
+                    url.searchParams.set('finished', 'true');
+                    window.parent.location.href = url.href;
                 }}
 
-                // 빨리감기/배속 감시 (0.5초마다)
                 setInterval(function() {{
                     if (player && player.getCurrentTime && {str(not loop_active).lower()}) {{
-                        if (player.getCurrentTime() >= {e_val} - 0.5) {{ sendEndSignal(); }}
+                        if (player.getCurrentTime() >= {e_val} - 0.5) {{ triggerReset(); }}
                     }}
                 }}, 500);
             </script>
             """
-            # 자바스크립트의 신호를 파이썬 변수(res)로 받음
-            res = components.html(html_watcher, height=460)
-            
-            # 신호가 들어오면 새로고침 없이 상태 업데이트
-            if res == "ended":
-                st.session_state.is_playing = False
-                st.rerun()
+            components.html(js_code, height=460)
         else:
-            st.warning("START 버튼을 누르면 연습이 시작됩니다.")
+            st.warning("설정 확인 후 START 버튼을 누르세요.")
+else:
+    st.error("데이터 파일을 찾을 수 없습니다.")
