@@ -72,7 +72,7 @@ if os.path.exists(JSON_FILE):
         st.info(f"👤 **낭독자:** {tgt.get('담당자', '미지정')}\n\n🕒 **구간:** {s_disp} ~ {e_disp}")
         
         # [트리거] 버튼 클릭 시 수동 강제 리셋
-        if st.button("▶️ 처음부터 다시 재생", use_container_width=True):
+        if st.button("▶️ 처음부터 재생  토글되나보자", use_container_width=True):
             st.session_state.v_key = str(time.time())
             st.rerun()
 
