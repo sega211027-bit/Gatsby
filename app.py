@@ -45,7 +45,7 @@ if os.path.exists(JSON_FILE):
     tgt = next(d for d in r_data if str(d['Day']) == day and str(d['ROUND']) == rnd and str(d['회차']) == turn)
     s_val, e_val = int(float(tgt.get('start_sec', 0))), int(float(tgt.get('end_sec', 0)))
 
-    # 3. 초대형 UI (레이아웃 고정)
+    # 3. UI 레이아웃
     st.markdown(f"""
         <div style="background-color: #f8faff; padding: 20px; border-radius: 20px; border: 2px solid #e1e8f0; margin-bottom: 15px; text-align: center;">
             <div style="display: flex; justify-content: space-around;">
@@ -72,7 +72,6 @@ if os.path.exists(JSON_FILE):
                 st.session_state.is_playing = False
                 st.rerun()
         
-        # 타임스탬프 정보
         st.markdown(f"""
             <div style="margin-top: 10px; padding: 12px; background-color: #f1f1f1; border-radius: 10px; text-align: center;">
                 <p style="margin: 0; font-size: 1.1em; color: #555;">Track Timestamp</p>
@@ -85,8 +84,8 @@ if os.path.exists(JSON_FILE):
     with col2:
         if st.session_state.is_playing:
             is_loop = "true" if loop_active else "false"
-            # [중요] f-string 내부의 JS 중괄호는 {{ }} 로 써야 문법 에러가 안 납니다.
-            js_code = f"""
+            # [수정] f-string 대신 .replace를 사용하여 중괄호 충돌을 원천 차단
+            js_template = """
             <div id="player"></div>
             <script>
                 var tag = document.createElement('script');
@@ -94,10 +93,32 @@ if os.path.exists(JSON_FILE):
                 var firstScriptTag = document.getElementsByTagName('script')[0];
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
                 var player;
-                function onYouTubeIframeAPIReady() {{
-                    player = new YT.Player('player', {{
-                        height: '450', width: '100%', videoId: '{v_id}',
-                        playerVars: {{ 'start': {s_val}, 'end': {e_val}, 'autoplay': 1, 'controls': 1, 'rel': 0, 'enablejsapi': 1 }}
-                    }});
-                }}
-                var
+                function onYouTubeIframeAPIReady() {
+                    player = new YT.Player('player', {
+                        height: '450', width: '100%', videoId: 'V_ID',
+                        playerVars: { 'start': S_VAL, 'end': E_VAL, 'autoplay': 1, 'controls': 1, 'rel': 0, 'enablejsapi': 1 }
+                    });
+                }
+                var monitor = setInterval(function() {
+                    if (player && player.getCurrentTime) {
+                        var curr = player.getCurrentTime();
+                        if (curr >= E_VAL - 0.4) {
+                            if (IS_LOOP) { 
+                                player.seekTo(S_VAL); 
+                            } else { 
+                                clearInterval(monitor);
+                                const url = new URL(window.parent.location.href);
+                                url.searchParams.set('trigger', 'reset');
+                                window.parent.location.replace(url.href);
+                            }
+                        }
+                    }
+                }, 500);
+            </script>
+            """
+            js_code = js_template.replace("V_ID", v_id).replace("S_VAL", str(s_val)).replace("E_VAL", str(e_val)).replace("IS_LOOP", is_loop)
+            components.html(js_code, height=460, key=f"yt_vfinal_{day}_{rnd}_{turn}")
+        else:
+            st.warning("연습 준비 완료")
+else:
+    st.error("JSON 파일을 찾을 수 없습니다.")
