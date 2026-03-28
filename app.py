@@ -3,7 +3,14 @@ import json
 import os
 import streamlit.components.v1 as components
 
-# 1. 시간 변환 함수
+# --- [1. 세션 상태 초기화: 최상단 배치] ---
+# 앱이 시작되자마자 가장 먼저 실행되어야 에러를 막을 수 있습니다.
+if 'is_playing' not in st.session_state:
+    st.session_state.is_playing = False
+if 'play_key' not in st.session_state:
+    st.session_state.play_key = 0
+
+# 2. 시간 변환 함수
 def format_time(seconds):
     try:
         s = int(float(seconds))
@@ -12,20 +19,16 @@ def format_time(seconds):
 
 st.set_page_config(page_title="Gatsby Audio Guide", layout="wide")
 
-# --- [상태 관리: Key 고정 로직] ---
-if 'is_playing' not in st.session_state:
-    st.session_state.is_playing = False
-if 'play_key' not in st.session_state:
-    st.session_state.play_key = 0
-
-# 영상 종료 후 리셋 처리
+# --- [3. 쿼리 파라미터 처리] ---
 if st.query_params.get("trigger") == "reset":
     st.session_state.is_playing = False
-    for k in list(st.query_params.keys()):
+    # 안전한 삭제 방식
+    params = st.query_params.to_dict()
+    for k in params:
         del st.query_params[k]
     st.rerun()
 
-# 2. 데이터 로드
+# 4. 데이터 로드
 JSON_FILE = "final_mapping.json"
 if os.path.exists(JSON_FILE):
     with open(JSON_FILE, 'r', encoding='utf-8') as f:
@@ -48,7 +51,7 @@ if os.path.exists(JSON_FILE):
     tgt = next(d for d in r_data if str(d['Day']) == day and str(d['ROUND']) == rnd and str(d['회차']) == turn)
     s_val, e_val = int(float(tgt.get('start_sec', 0))), int(float(tgt.get('end_sec', 0)))
 
-    # 3. UI 대시보드
+    # 5. UI 대시보드
     st.markdown(f"""
         <div style="background-color: #f8faff; padding: 20px; border-radius: 20px; border: 2px solid #e1e8f0; margin-bottom: 15px; text-align: center;">
             <div style="display: flex; justify-content: space-around;">
@@ -65,11 +68,11 @@ if os.path.exists(JSON_FILE):
     col1, col2 = st.columns([1, 2])
     with col1:
         st.markdown("<style>div.stButton > button { height: 110px !important; font-size: 38px !important; border-radius: 15px !important; }</style>", unsafe_allow_html=True)
+        
         if not st.session_state.is_playing:
             if st.button("▶ START", use_container_width=True, type="primary"):
-                # 시작할 때만 key를 1 증가시켜서 새 플레이어 로드
+                # 버튼을 누를 때만 key를 변경하여 렌더링 충돌 방지
                 st.session_state.play_key += 1
-                for k in list(st.query_params.keys()): del st.query_params[k]
                 st.session_state.is_playing = True
                 st.rerun()
         else:
@@ -89,6 +92,8 @@ if os.path.exists(JSON_FILE):
     with col2:
         if st.session_state.is_playing:
             is_loop = "true" if loop_active else "false"
+            
+            # [중요] .replace() 방식으로 문법 충돌 완전 해결
             js_template = """
             <div id="player"></div>
             <script>
@@ -121,9 +126,10 @@ if os.path.exists(JSON_FILE):
             """
             js_code = js_template.replace("V_ID", v_id).replace("S_VAL", str(s_val)).replace("E_VAL", str(e_val)).replace("IS_LOOP", is_loop)
             
-            # [핵심] 정적인 key를 사용하여 무한 렌더링 방지 (버튼 클릭 시에만 play_key가 변함)
-            components.html(js_code, height=460, key=f"yt_v6_{st.session_state.play_key}")
+            # [수정] key 생성 시 session_state를 문자열로 안전하게 결합
+            final_key = "yt_v7_" + str(st.session_state.play_key)
+            components.html(js_code, height=460, key=final_key)
         else:
-            st.warning("연습 준비 완료")
+            st.warning("연습 준비 완료. ▶ START를 눌러주세요.")
 else:
     st.error("JSON 파일을 찾을 수 없습니다.")
