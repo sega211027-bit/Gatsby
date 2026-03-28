@@ -82,4 +82,18 @@ if os.path.exists(JSON_FILE):
     with col2:
         if st.session_state.is_playing:
             loop_p = f"&playlist={v_id}&loop=1" if loop_active else "&loop=0"
-            final_src = f"https://www.youtube.com/embed/{v_id}?start={s_val}&end={e_val}&autoplay=1&mute=0&rel=0&enablejsapi=1{loop_p}&v={st.session_state.
+            final_src = f"https://www.youtube.com/embed/{v_id}?start={s_val}&end={e_val}&autoplay=1&mute=0&rel=0&enablejsapi=1{loop_p}&v={st.session_state.v_key}"
+            
+            components.html(f'<iframe width="100%" height="480" src="{final_src}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>', height=490)
+            
+            # [가속화 리셋 로직]
+            if not loop_active:
+                duration = e_val - s_val
+                # 영상이 완전히 멈추기 1.5초 전에 버튼을 녹색으로 미리 리셋
+                time.sleep(max(duration - 1.5, 0.5)) 
+                st.session_state.is_playing = False
+                st.rerun()
+        else:
+            st.warning("설정 확인 후 START 버튼을 누르세요.")
+else:
+    st.error("데이터 파일을 찾을 수 없습니다.")
