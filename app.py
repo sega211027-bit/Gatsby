@@ -1,10 +1,9 @@
 import streamlit as st
 import json
 import os
-import time
 import streamlit.components.v1 as components
 
-# 1. 시간 변환 함수 (유튜브 스타일 0:00)
+# 1. 시간 변환 함수
 def format_time(seconds):
     try:
         s = int(float(seconds))
@@ -13,11 +12,13 @@ def format_time(seconds):
 
 st.set_page_config(page_title="Gatsby Audio Guide", layout="wide")
 
-# --- [상태 관리 및 쿼리 파라미터 초기화] ---
+# --- [상태 관리: Key 고정 로직] ---
 if 'is_playing' not in st.session_state:
     st.session_state.is_playing = False
+if 'play_key' not in st.session_state:
+    st.session_state.play_key = 0
 
-# 영상 종료 후 리셋 신호 처리
+# 영상 종료 후 리셋 처리
 if st.query_params.get("trigger") == "reset":
     st.session_state.is_playing = False
     for k in list(st.query_params.keys()):
@@ -35,7 +36,6 @@ if os.path.exists(JSON_FILE):
     st.sidebar.header("⚙️ Settings")
     loop_active = st.sidebar.toggle("🔄 무한 반복 모드", value=False)
     
-    # 옵션 추출 (모든 값 문자열 처리로 타입 에러 방지)
     day_opts = sorted(list(set(str(d['Day']) for d in r_data)))
     day = st.sidebar.select_slider("📅 Day", options=day_opts)
     
@@ -45,11 +45,10 @@ if os.path.exists(JSON_FILE):
     turn_opts = sorted(list(set(str(d['회차']) for d in r_data if str(d['Day']) == day and str(d['ROUND']) == rnd)))
     turn = st.sidebar.select_slider("🔢 회차", options=turn_opts)
 
-    # 선택된 타겟 데이터
     tgt = next(d for d in r_data if str(d['Day']) == day and str(d['ROUND']) == rnd and str(d['회차']) == turn)
     s_val, e_val = int(float(tgt.get('start_sec', 0))), int(float(tgt.get('end_sec', 0)))
 
-    # 3. 초대형 UI 대시보드
+    # 3. UI 대시보드
     st.markdown(f"""
         <div style="background-color: #f8faff; padding: 20px; border-radius: 20px; border: 2px solid #e1e8f0; margin-bottom: 15px; text-align: center;">
             <div style="display: flex; justify-content: space-around;">
@@ -59,7 +58,7 @@ if os.path.exists(JSON_FILE):
             </div>
         </div>
         <div style="background-color: #ffffff; padding: 25px; border-radius: 15px; border: 4px solid #f1f1f1; text-align: center; margin-bottom: 20px;">
-            <h1 style="font-family: 'Times New Roman', serif; font-style: italic; color: #222; font-size: 3.5em; margin: 0;">"{tgt.get('phrase', '')}"</h1>
+            <h1 style="font-family: 'Times New Roman', serif; font-style: italic; color: #222; font-size: 3.2em; margin: 0;">"{tgt.get('phrase', '')}"</h1>
         </div>
     """, unsafe_allow_html=True)
 
@@ -68,6 +67,8 @@ if os.path.exists(JSON_FILE):
         st.markdown("<style>div.stButton > button { height: 110px !important; font-size: 38px !important; border-radius: 15px !important; }</style>", unsafe_allow_html=True)
         if not st.session_state.is_playing:
             if st.button("▶ START", use_container_width=True, type="primary"):
+                # 시작할 때만 key를 1 증가시켜서 새 플레이어 로드
+                st.session_state.play_key += 1
                 for k in list(st.query_params.keys()): del st.query_params[k]
                 st.session_state.is_playing = True
                 st.rerun()
@@ -76,7 +77,6 @@ if os.path.exists(JSON_FILE):
                 st.session_state.is_playing = False
                 st.rerun()
         
-        # 유튜브 스타일 타임스탬프 표시
         st.markdown(f"""
             <div style="margin-top: 10px; padding: 12px; background-color: #f1f1f1; border-radius: 10px; text-align: center;">
                 <p style="margin: 0; font-size: 1.1em; color: #555;">Track Timestamp</p>
@@ -89,7 +89,6 @@ if os.path.exists(JSON_FILE):
     with col2:
         if st.session_state.is_playing:
             is_loop = "true" if loop_active else "false"
-            # [중요] .replace() 방식으로 문법 충돌 완전 해결
             js_template = """
             <div id="player"></div>
             <script>
@@ -108,9 +107,8 @@ if os.path.exists(JSON_FILE):
                     if (player && player.getCurrentTime) {
                         var curr = player.getCurrentTime();
                         if (curr >= E_VAL - 0.4) {
-                            if (IS_LOOP) { 
-                                player.seekTo(S_VAL); 
-                            } else { 
+                            if (IS_LOOP) { player.seekTo(S_VAL); }
+                            else { 
                                 clearInterval(monitor);
                                 const url = new URL(window.parent.location.href);
                                 url.searchParams.set('trigger', 'reset');
@@ -122,7 +120,9 @@ if os.path.exists(JSON_FILE):
             </script>
             """
             js_code = js_template.replace("V_ID", v_id).replace("S_VAL", str(s_val)).replace("E_VAL", str(e_val)).replace("IS_LOOP", is_loop)
-            components.html(js_code, height=460, key=f"yt_vfinal_{day}_{rnd}_{turn}_{int(time.time())}")
+            
+            # [핵심] 정적인 key를 사용하여 무한 렌더링 방지 (버튼 클릭 시에만 play_key가 변함)
+            components.html(js_code, height=460, key=f"yt_v6_{st.session_state.play_key}")
         else:
             st.warning("연습 준비 완료")
 else:
