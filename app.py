@@ -3,6 +3,16 @@ import json
 import os
 import streamlit.components.v1 as components
 
+# --- [시간 변환 함수 추가] ---
+def format_time(seconds):
+    try:
+        total_sec = int(float(seconds))
+        minutes = total_sec // 60
+        secs = total_sec % 60
+        return f"{minutes}:{secs:02d}" # 예: 2:05
+    except:
+        return "0:00"
+
 st.set_page_config(page_title="Gatsby Audio Guide", layout="wide")
 JSON_FILE = "final_mapping.json"
 
@@ -31,7 +41,7 @@ if os.path.exists(JSON_FILE):
     tgt = next(d for d in r_data if d['Day'] == day and d['ROUND'] == rnd and d['회차'] == turn)
     s_val, e_val = int(float(tgt.get('start_sec', 0))), int(float(tgt.get('end_sec', 0)))
 
-    # --- [3. UI 복원] ---
+    # --- [3. UI: 상단 정보창 및 구절] ---
     st.markdown(f"""
         <div style="background-color: #f8faff; padding: 25px; border-radius: 20px; border: 2px solid #e1e8f0; margin-bottom: 20px; text-align: center;">
             <div style="display: flex; justify-content: space-around;">
@@ -48,6 +58,7 @@ if os.path.exists(JSON_FILE):
     col1, col2 = st.columns([1, 2])
     with col1:
         st.markdown("<style>div.stButton > button { height: 120px !important; font-size: 40px !important; border-radius: 20px !important; }</style>", unsafe_allow_html=True)
+        
         if not st.session_state.is_playing:
             if st.button("▶ START", use_container_width=True, type="primary"):
                 st.session_state.is_playing = True
@@ -56,12 +67,20 @@ if os.path.exists(JSON_FILE):
             if st.button("⏹ STOP", use_container_width=True, type="secondary"):
                 st.session_state.is_playing = False
                 st.rerun()
+        
+        # --- [유튜브 타임스탬프 형식 적용] ---
+        st.markdown(f"""
+            <div style="margin-top: 15px; padding: 15px; background-color: #eee; border-radius: 10px; text-align: center; border: 1px solid #ddd;">
+                <p style="margin: 0; font-size: 1.1em; color: #444;"><b>Track Info (Timestamp)</b></p>
+                <p style="margin: 5px 0 0 0; font-size: 2.2em; font-weight: bold; color: #333;">
+                    <span style="color: #007bff;">{format_time(s_val)}</span> <span style="font-size: 0.6em; color: #888;">▶</span> <span style="color: #ff4b4b;">{format_time(e_val)}</span>
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
 
     with col2:
         if st.session_state.is_playing:
-            # 핵심 로직 분기
             is_loop_js = "true" if loop_active else "false"
-
             js_code = f"""
             <div id="player"></div>
             <script>
@@ -74,26 +93,14 @@ if os.path.exists(JSON_FILE):
                 function onYouTubeIframeAPIReady() {{
                     player = new YT.Player('player', {{
                         height: '450', width: '100%', videoId: '{v_id}',
-                        playerVars: {{ 
-                            'start': {s_val}, 'end': {e_val}, 
-                            'autoplay': 1, 'controls': 1, 'rel': 0, 'enablejsapi': 1
-                        }},
-                        events: {{
-                            'onStateChange': onPlayerStateChange
-                        }}
+                        playerVars: {{ 'start': {s_val}, 'end': {e_val}, 'autoplay': 1, 'controls': 1, 'rel': 0, 'enablejsapi': 1 }},
+                        events: {{ 'onStateChange': function(event) {{
+                            if (event.data == YT.PlayerState.ENDED) {{
+                                if ({is_loop_js}) {{ player.seekTo({s_val}); player.playVideo(); }}
+                                else {{ triggerReset(); }}
+                            }}
+                        }} }}
                     }});
-                }}
-
-                // 상태 변화 감지 (영상이 완전히 끝났을 때의 대응)
-                function onPlayerStateChange(event) {{
-                    if (event.data == YT.PlayerState.ENDED) {{
-                        if ({is_loop_js}) {{
-                            player.seekTo({s_val}); // 무한반복이면 시작지점으로 점프
-                            player.playVideo();
-                        }} else {{
-                            triggerReset(); // 아니면 버튼 리셋
-                        }}
-                    }}
                 }}
 
                 function triggerReset() {{
@@ -102,16 +109,12 @@ if os.path.exists(JSON_FILE):
                     window.parent.location.replace(url.href);
                 }}
 
-                // 실시간 감시 (배속/빨리감기 대응)
                 setInterval(function() {{
                     if (player && player.getCurrentTime) {{
                         var curr = player.getCurrentTime();
-                        if (curr >= {e_val} - 0.3) {{ // 종료 0.3초 전 감지
-                            if ({is_loop_js}) {{
-                                player.seekTo({s_val}); // 시작지점으로 강제 점프
-                            }} else {{
-                                triggerReset();
-                            }}
+                        if (curr >= {e_val} - 0.3) {{
+                            if ({is_loop_js}) {{ player.seekTo({s_val}); }}
+                            else {{ triggerReset(); }}
                         }}
                     }}
                 }}, 500);
