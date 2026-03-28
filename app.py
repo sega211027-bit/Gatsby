@@ -1,28 +1,17 @@
 import streamlit as st
 import json
 import os
-import streamlit.components.v1 as components
 
-# --- [1. 설정 및 상태 초기화] ---
+# 1. 설정 및 기본 함수
 st.set_page_config(page_title="Gatsby Audio Guide", layout="wide")
 
-if 'is_playing' not in st.session_state:
-    st.session_state.is_playing = False
-
-# 2. 시간 변환 함수
 def format_time(seconds):
     try:
         s = int(float(seconds))
         return f"{s // 60}:{s % 60:02d}"
     except: return "0:00"
 
-# --- [3. 쿼리 파라미터 리셋] ---
-if st.query_params.get("trigger") == "reset":
-    st.session_state.is_playing = False
-    st.query_params.clear()
-    st.rerun()
-
-# 4. 데이터 로드
+# 2. 데이터 로드
 JSON_FILE = "final_mapping.json"
 if os.path.exists(JSON_FILE):
     with open(JSON_FILE, 'r', encoding='utf-8') as f:
@@ -31,8 +20,6 @@ if os.path.exists(JSON_FILE):
     
     # 사이드바 설정
     st.sidebar.header("⚙️ Settings")
-    loop_active = st.sidebar.toggle("🔄 무한 반복 모드", value=False)
-    
     day_opts = sorted(list(set(str(d['Day']) for d in r_data)))
     day = st.sidebar.select_slider("📅 Day", options=day_opts)
     
@@ -45,7 +32,7 @@ if os.path.exists(JSON_FILE):
     tgt = next(d for d in r_data if str(d['Day']) == day and str(d['ROUND']) == rnd and str(d['회차']) == turn)
     s_val, e_val = int(float(tgt.get('start_sec', 0))), int(float(tgt.get('end_sec', 0)))
 
-    # 5. UI 대시보드
+    # 3. UI 대시보드 (디자인 유지)
     st.markdown(f"""
         <div style="background-color: #f8faff; padding: 20px; border-radius: 20px; border: 2px solid #e1e8f0; margin-bottom: 15px; text-align: center;">
             <div style="display: flex; justify-content: space-around;">
@@ -61,55 +48,21 @@ if os.path.exists(JSON_FILE):
 
     col1, col2 = st.columns([1, 2])
     with col1:
-        st.markdown("<style>div.stButton > button { height: 110px !important; font-size: 38px !important; border-radius: 15px !important; }</style>", unsafe_allow_html=True)
-        
-        # 버튼을 눌러도 rerun()하지 않고 상태만 변경 (안정성 확보)
-        if not st.session_state.is_playing:
-            if st.button("▶ START", use_container_width=True, type="primary"):
-                st.session_state.is_playing = True
-                st.rerun()
-        else:
-            if st.button("⏹ STOP", use_container_width=True, type="secondary"):
-                st.session_state.is_playing = False
-                st.rerun()
-        
-        st.write(f"**Track:** {format_time(s_val)} ~ {format_time(e_val)}")
+        st.info(f"📍 구간: {format_time(s_val)} ~ {format_time(e_val)}")
+        st.write("슬라이더를 조작하면 아래 영상이 자동으로 해당 구간으로 설정됩니다.")
+        st.markdown("---")
+        st.caption("주의: 자동 반복/자동 종료 기능은 현재 파이썬 버전과의 충돌로 인해 수동 조작으로 대체되었습니다.")
 
     with col2:
-        # [핵심] 키값을 'STATIC_PLAYER'로 고정하여 충돌 원천 차단
-        if st.session_state.is_playing:
-            is_loop = "true" if loop_active else "false"
-            js_template = """
-            <div id="player"></div>
-            <script>
-                var tag = document.createElement('script');
-                tag.src = "https://www.youtube.com/iframe_api";
-                var firstScriptTag = document.getElementsByTagName('script')[0];
-                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-                var player;
-                function onYouTubeIframeAPIReady() {
-                    player = new YT.Player('player', {
-                        height: '450', width: '100%', videoId: 'V_ID',
-                        playerVars: { 'start': S_VAL, 'end': E_VAL, 'autoplay': 1, 'controls': 1, 'enablejsapi': 1 }
-                    });
-                }
-                var monitor = setInterval(function() {
-                    if (player && player.getCurrentTime) {
-                        var curr = player.getCurrentTime();
-                        if (curr >= E_VAL - 0.3) {
-                            if (IS_LOOP) { player.seekTo(S_VAL); }
-                            else { 
-                                clearInterval(monitor);
-                                window.parent.location.href = window.parent.location.origin + window.parent.location.pathname + "?trigger=reset";
-                            }
-                        }
-                    }
-                }, 500);
-            </script>
-            """
-            js_code = js_template.replace("V_ID", v_id).replace("S_VAL", str(s_val)).replace("E_VAL", str(e_val)).replace("IS_LOOP", is_loop)
-            components.html(js_code, height=460, key="STATIC_PLAYER")
-        else:
-            st.info("연습 준비 완료. ▶ START를 눌러주세요.")
+        # [핵심 변경] 에러를 유발하는 자바스크립트 대신 표준 iframe 주소 방식 사용
+        # 이 방식은 자바스크립트 엔진을 직접 건드리지 않아 TypeError가 발생하지 않습니다.
+        yt_url = f"https://www.youtube.com/embed/{v_id}?start={s_val}&end={e_val}&autoplay=1&rel=0"
+        
+        st.markdown(f"""
+            <iframe width="100%" height="450" src="{yt_url}" 
+            frameborder="0" allow="autoplay; encrypted-media" allowfullscreen>
+            </iframe>
+        """, unsafe_allow_html=True)
+
 else:
     st.error("JSON 파일을 찾을 수 없습니다.")
