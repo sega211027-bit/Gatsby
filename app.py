@@ -24,13 +24,16 @@ if os.path.exists(JSON_FILE):
         cfg = json.load(f)
     v_id, r_data = cfg['video_id'], cfg['data']
     
+    # --- [사이드바 컨트롤러] ---
     st.sidebar.header("⚙️ 컨트롤러")
     is_locked = st.session_state.app_status != "READY"
 
-    # 1. 무한반복 토글 (다시 살림)
+    # 1. 무한반복 토글 & 텍스트 가변 표시
     loop_active = st.sidebar.toggle("🔄 무한 반복 모드", value=False, disabled=is_locked)
+    loop_text = "✅ 무한 반복 ON" if loop_active else "❌ 무한 반복 OFF"
+    st.sidebar.markdown(f"**{loop_text}**")
     
-    # 2. 신호등 상태 표시 (다시 살림)
+    # 2. 신호등 상태 표시
     st.sidebar.divider()
     if st.session_state.app_status == "READY":
         st.sidebar.markdown("⚪ **상태: 대기 중 (READY)**")
@@ -51,17 +54,30 @@ if os.path.exists(JSON_FILE):
     s_val = int(float(tgt.get('start_sec', 0)))
     e_val = int(float(tgt.get('end_sec', 0)))
 
-    # --- [메인 UI] ---
+    # --- [메인 UI: 폰트 크기 극대화] ---
     st.title("📖 Great Gatsby Audio Guide")
 
-    # 숫자 및 문구 표시 (모바일 최적화)
+    # 숫자 강조 (제목보다 크게 설정)
     st.markdown(f"""
-        <div style="background-color: #f0f7ff; padding: 15px; border-radius: 15px; border-left: 10px solid #007bff; margin-bottom: 15px; text-align: center;">
-            <span style="font-size: 1.2em; color: #555;">DAY {day} / ROUND {rnd} / 회차 {turn}</span>
+        <div style="background-color: #f0f7ff; padding: 25px; border-radius: 20px; border-left: 15px solid #007bff; margin-bottom: 20px; text-align: center;">
+            <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap;">
+                <div style="margin: 10px;">
+                    <span style="font-size: 1.5em; color: #666; font-weight: bold;">Day</span><br>
+                    <span style="font-size: 5em; font-weight: 900; color: #007bff; line-height: 1;">{day}</span>
+                </div>
+                <div style="margin: 10px;">
+                    <span style="font-size: 1.5em; color: #666; font-weight: bold;">ROUND</span><br>
+                    <span style="font-size: 5em; font-weight: 900; color: #007bff; line-height: 1;">{rnd}</span>
+                </div>
+                <div style="margin: 10px;">
+                    <span style="font-size: 1.5em; color: #666; font-weight: bold;">회차</span><br>
+                    <span style="font-size: 5em; font-weight: 900; color: #28a745; line-height: 1;">{turn}</span>
+                </div>
+            </div>
         </div>
-        <div style="background-color: #ffffff; padding: 20px; border-radius: 15px; border: 3px solid #eee; text-align: center; margin-bottom: 20px;">
-            <p style="color: #ff6b6b; font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">📍 시작 문구</p>
-            <h1 style="font-family: 'Times New Roman', serif; font-style: italic; color: #333; font-size: 3.2em; margin: 0;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 15px; border: 4px solid #eee; text-align: center; margin-bottom: 25px;">
+            <p style="color: #ff6b6b; font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">📍 시작 문구</p>
+            <h1 style="font-family: 'Times New Roman', serif; font-style: italic; color: #333; font-size: 3.5em; margin: 0; line-height: 1.2;">
                 "{tgt.get('phrase', '')}"
             </h1>
         </div>
@@ -72,51 +88,32 @@ if os.path.exists(JSON_FILE):
     with col1:
         st.info(f"👤 **낭독자:** {tgt.get('담당자', '미지정')}\n🕒 **구간:** {format_seconds(s_val)} ~ {format_seconds(e_val)}")
         
-        # 버튼 크기 대폭 확대 (CSS 사용)
-        st.markdown("""
+        # 버튼 스타일: START(녹색), STOP(빨강) + 초대형 크기
+        st.markdown(f"""
             <style>
-                div.stButton > button {
-                    height: 100px !important;
-                    font-size: 30px !important;
-                    font-weight: bold !important;
-                    border-radius: 15px !important;
-                }
+                /* START 버튼 (Primary) */
+                div.stButton > button[kind="primary"] {{
+                    height: 120px !important;
+                    font-size: 40px !important;
+                    background-color: #28a745 !important;
+                    color: white !important;
+                    border: none !important;
+                    border-radius: 20px !important;
+                    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3) !important;
+                }}
+                /* STOP/RESET 버튼 (Secondary) */
+                div.stButton > button[kind="secondary"] {{
+                    height: 120px !important;
+                    font-size: 35px !important;
+                    background-color: #dc3545 !important;
+                    color: white !important;
+                    border: none !important;
+                    border-radius: 20px !important;
+                    box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3) !important;
+                }}
             </style>
         """, unsafe_allow_html=True)
 
         if st.session_state.app_status == "READY":
-            if st.button("▶️ START", use_container_width=True, type="primary"):
-                st.session_state.v_key = str(int(time.time()))
-                st.session_state.app_status = "PLAYING"
-                st.rerun()
-        
-        else:
-            if st.button("⏹️ STOP / RESET", use_container_width=True):
-                st.session_state.app_status = "READY"
-                st.rerun()
-
-    with col2:
-        if st.session_state.app_status == "PLAYING":
-            # [재생 안됨 해결] autoplay=1과 함께 mute=1을 넣어야 브라우저가 자동 재생을 허용합니다.
-            # 루프를 위해 playlist={v_id}와 loop=1을 조건부로 추가
-            loop_param = f"&playlist={v_id}&loop=1" if loop_active else "&loop=0"
-            final_src = f"https://www.youtube.com/embed/{v_id}?start={s_val}&end={e_val}&autoplay=1&mute=0&rel=0&enablejsapi=1{loop_param}&v={st.session_state.v_key}"
-            
-            components.html(f"""
-                <iframe width="100%" height="450" src="{final_src}" 
-                frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-            """, height=460)
-            
-            if not loop_active:
-                duration = e_val - s_val
-                time.sleep(max(duration, 1) + 1)
-                st.session_state.app_status = "DONE"
-                st.rerun()
-        
-        elif st.session_state.app_status == "DONE":
-            st.success("✅ 연습 완료! 다시 시작하려면 STOP/RESET을 눌러주세요.")
-        else:
-            st.warning("대기 중... START를 누르면 영상이 로드됩니다.")
-
-else:
-    st.error("데이터 파일을 찾을 수 없습니다.")
+            if st.button("▶ START", use_container_width=True, type="primary"):
+                st.session_state.v_key = str(int(time.time
