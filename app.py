@@ -1,6 +1,11 @@
-#is_admin = st.sidebar.checkbox("🛠️ 관리자 모드") 관리자용
-#is_admin = False 배포용, 지금 상태는 배포용
+#is_admin = st.sidebar.checkbox("🛠️ 관리자 모드") 관리자용 지금 상태는 관리용
+#is_admin = False 배포용, ap.py 이름으로 올려야함
+# 잘동작함 관리자모드에서도 배포에서도
 
+# python 경로때문에 이렇게 RUN  명령 여기서는 경로 바꿔야지
+#& c:\Users\1\python\python.exe -m streamlit run c:/Users/1/Documents/python-program/python-youtube-timeline/youtube_20260828/youtube_roster_system.py
+
+# replay 스크립트 보여라
 
 import streamlit as st
 import pandas as pd
@@ -69,8 +74,8 @@ def parse_transcript(content):
 
 st.set_page_config(page_title="Gatsby Roster System", layout="wide")
 JSON_FILE = "final_mapping.json"
-#is_admin = st.sidebar.checkbox("🛠️ 관리자 모드")
-is_admin = False
+is_admin = st.sidebar.checkbox("🛠️ 관리자 모드")
+#is_admin = False
 
 if is_admin:
     st.title("🛠️ 초정밀 매칭 (시:분:초 포맷 완결판)")
