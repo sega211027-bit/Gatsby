@@ -47,6 +47,8 @@ if os.path.exists(JSON_FILE):
 
     col1, col2 = st.columns([1, 2])
     with col1:
+        #추가
+        st.write(f"⏱️ **재생 구간:** {s_val//60}:{s_val%60:02d} ~ {e_val//60}:{e_val%60:02d}")
         st.markdown("<style>div.stButton > button { height: 120px !important; font-size: 40px !important; border-radius: 20px !important; }</style>", unsafe_allow_html=True)
         if not st.session_state.is_playing:
             if st.button("▶ START", use_container_width=True, type="primary"):
@@ -118,6 +120,7 @@ if os.path.exists(JSON_FILE):
             </script>
             """
             #components.html(js_code, height=460)
+            #추가
             components.html(js_code, height=460, key=f"yt_player_{day}_{rnd}_{turn}")
         else:
             st.warning("연습 준비 완료")
