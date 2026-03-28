@@ -4,11 +4,10 @@ import os
 import streamlit.components.v1 as components
 
 # --- [1. 세션 상태 초기화: 최상단 배치] ---
-# 앱이 시작되자마자 가장 먼저 실행되어야 에러를 막을 수 있습니다.
 if 'is_playing' not in st.session_state:
     st.session_state.is_playing = False
-if 'play_key' not in st.session_state:
-    st.session_state.play_key = 0
+if 'play_id' not in st.session_state:
+    st.session_state.play_id = 0
 
 # 2. 시간 변환 함수
 def format_time(seconds):
@@ -22,10 +21,8 @@ st.set_page_config(page_title="Gatsby Audio Guide", layout="wide")
 # --- [3. 쿼리 파라미터 처리] ---
 if st.query_params.get("trigger") == "reset":
     st.session_state.is_playing = False
-    # 안전한 삭제 방식
-    params = st.query_params.to_dict()
-    for k in params:
-        del st.query_params[k]
+    # 최신 Streamlit 방식의 안전한 파라미터 삭제
+    st.query_params.clear()
     st.rerun()
 
 # 4. 데이터 로드
@@ -71,8 +68,8 @@ if os.path.exists(JSON_FILE):
         
         if not st.session_state.is_playing:
             if st.button("▶ START", use_container_width=True, type="primary"):
-                # 버튼을 누를 때만 key를 변경하여 렌더링 충돌 방지
-                st.session_state.play_key += 1
+                # play_id를 문자열 조합으로 변경하여 식별 안정성 강화
+                st.session_state.play_id += 1
                 st.session_state.is_playing = True
                 st.rerun()
         else:
@@ -90,10 +87,11 @@ if os.path.exists(JSON_FILE):
         """, unsafe_allow_html=True)
 
     with col2:
+        # 재생 중일 때만 컴포넌트를 호출하여 충돌 방지
         if st.session_state.is_playing:
             is_loop = "true" if loop_active else "false"
             
-            # [중요] .replace() 방식으로 문법 충돌 완전 해결
+            # .replace() 방식으로 문법 충돌 원천 차단
             js_template = """
             <div id="player"></div>
             <script>
@@ -126,10 +124,11 @@ if os.path.exists(JSON_FILE):
             """
             js_code = js_template.replace("V_ID", v_id).replace("S_VAL", str(s_val)).replace("E_VAL", str(e_val)).replace("IS_LOOP", is_loop)
             
-            # [수정] key 생성 시 session_state를 문자열로 안전하게 결합
-            final_key = "yt_v7_" + str(st.session_state.play_key)
+            # [해결책] 고정된 이름 + 순차적 번호로 Key 충돌 완벽 차단
+            final_key = f"yt_vfinal_id_{st.session_state.play_id}"
             components.html(js_code, height=460, key=final_key)
         else:
-            st.warning("연습 준비 완료. ▶ START를 눌러주세요.")
+            # STOP 상태일 때는 컴포넌트를 아예 제거하여 메모리 충돌 방지
+            st.info("연습 준비 완료. ▶ START를 눌러주세요.")
 else:
     st.error("JSON 파일을 찾을 수 없습니다.")
